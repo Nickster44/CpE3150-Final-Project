@@ -9,27 +9,43 @@
 #include <stdlib.h>
 #include <avr/interrupt.h>
 
+#define F_CPU 16000000UL
 #define bit_get(p,m) ((p) & (m))
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clear(p,m) ((p) &= ~(m))
 #define bit_flip(p,m) ((p) ^= (m))
 #define bit_write(c,p,m) (c ? bit_set(p,m) : bit_clear(p,m))
 #define BIT(x) (0x01 << (x))
+#define pinID1 5
+#define pinID2 5
+#define pinID3 6
+#define pinID4 7
 
-bool b1, b2, b3, b4, b5, b6, b7, b8, modeButton, session = false;
+void USART_Init(unsigned long);
+char USART_RxChar();
+void USART_TxChar(char);
+void USART_SendString(char*);
+unsigned char value;
+void newArray();
+void delay(int time_ms);
+void displayPattern();
+void incrementMode();
+
+char b1, b2, b3, b4, b5, b6, b7, b8, modeButton, session = 0;
 char mode = 1, pos = 0;
 char array1[10] = {0};
-short delayTime = 1000;
-short timeBuffer = 0;
+int delayTime = 1000;
+int timeBuffer = 0;
 char patternSize = 4;
 
 int main(void)
 {
 	PORTA = 0xFF; // use pull-up resistors on Port A for the input switches
 	DDRA = 0x00; // Set port A to input
-	DDRD = 0xFF; // Set port D to output
-	PORTE = 0xBB; // 0xBB for Button input, led output and RX TX, I think.
-	DDRE = 0xBB;
+	DDRD = 0xFB;    // USART1 uses pins PD2 for Receiving (input) & PD3 for Transmitting (output)
+	PORTD = 0xFF;    // turn all of the LEDs off (pull-up resistors on)
+	PORTE = 0xBF; 
+	DDRE = 0xBF;
 
 	TCCR0A = (1 << WGM01); //Set CTC bit
 	OCR0A = 125;
@@ -45,37 +61,44 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
-		updateButtons()
+		USART_SendString("Beginning");
+		//updateButtons()
+		newArray();
+		USART_SendString("End");
+		displayPattern();
 		
-		if(session == false) {
+		delay(100);
+		/*
+		if(session == 0) {
 			pos = 0;
 			newArray();
 			displayPattern();
-			displayingPattern = false;
-			session = true;
+			displayingPattern = 0;
+			session = 1;
 		}
-		if(validate == true) {
+		if(validate == 1) {
 			if(currentButton == array1[pos]) {
-				validate = false;			// if button pressed was correct, then pos increment and continue game
+				validate = 0;			// if button pressed was correct, then pos increment and continue game
 				if(pos == patternSize - 1) {
-					displaySerialWinningMessage();
-					session = false;
+					USART_SendString("Level Complete!");
+					session = 0;
 				}
 				pos++;
 			}else {
-				validate = false;	// if button pressed was not correct, restart session.
-				session = false;
+				validate = 0;	// if button pressed was not correct, restart session.
+				session = 0;
 			}
 		}
-
+		*/
     }
 }
 
+/*
 void buttonPressed(char saidButton) {
 	currentButton = saidButton;
 	saidButtonLED = HIGH;
 	makeButtonPressedNoise(); // need to use timer2 for noise frequency
-	validate = true;
+	validate = 1;
 
 }
 
@@ -85,11 +108,11 @@ void updateButtons() {
 		buttonPressed(saidButton);  // Send button ID that was pressed to function to display button's LED and call noise function
 	}
 
-	if(modeButton == true) {
+	if(modeButton == 1) {
 		incrementMode()
 	}
 }
-
+*/
 void incrementMode() {
 	mode++;
 	if(mode == 4) {
@@ -99,43 +122,108 @@ void incrementMode() {
 		case 1: {
 			delayTime = 1000;
 			patternSize = 4;
-			session = false;
+			session = 0;
 		}
 		case 2: {
 			delayTime = 750;
 			patternSize = 7;
-			session = false;
+			session = 0;
 		}
 		case 3: {
 			delayTime = 500;
 			patternSize = 10;
-			session = false;
+			session = 0;
 		}
 	}
 }
 
 void displayPattern() {
-	for(char i = 0; i < patternSize; i++) {
-		
+	for(int i = 0; i < patternSize; i++) {
+		switch (array1[i])
+		{
+		case 1:
+			PORTE &= ~(1 << pinID1);
+			delay(delayTime);
+			PORTE |= 1 << pinID1;
+			delay(100);
+			break;
+		case 2:
+			PORTD &= ~(1 << pinID2);
+			delay(delayTime);
+			PORTD |= 1 << pinID2;
+			delay(100);
+			break;
+		case 3:
+			PORTD &= ~(1 << pinID3);
+			delay(delayTime);
+			PORTD |= 1 << pinID3;
+			delay(100);
+			break;
+		case 4:
+			PORTD &= ~(1 << pinID4);
+			delay(delayTime);
+			PORTD |= 1 << pinID4;
+			delay(100);
+			break;
+		}
 	}
 }
 
 void newArray() {
-	for(char i = 0; i < 10; i++) {
-		char x = (rand() % 9) + 1;
+	for(int i = 0; i < 10; i++) {
+		char x = (rand() % 4) + 1;
 		array1[i] = x;
 	}
+	USART_SendString("Made new Array");
 }
 
- void delay(short time_ms) {
-	bool complete = false;
+ void delay(int time_ms) {
+	char complete = 0;
 	timeBuffer = 0;
-	while(!complete) {
-		complete = (time_ms == timeBuffer) ? true : false;
+	while(complete == 0) {
+		char buf[10];
+		//itoa(timeBuffer, buf, 10);
+		//USART_SendString(buf);
+		//itoa(time_ms, buf, 10);
+		//USART_SendString(buf);
+		
+		if (timeBuffer > time_ms)
+		{
+			complete = 1;
+		}
 	}
  }
 
  ISR(TIMER0_COMPA_vect) {
-	timeBuffer++;
-	//TCNT0 = 0; dont think this is needed.
+	timeBuffer += 1;
+	TCNT0 = 0;
  }
+ 
+ void USART_Init(unsigned long BAUDRATE)                // USART initialize function */
+{
+	int BAUD_PRESCALE = (((F_CPU / (BAUDRATE * 16UL))) - 1);      // Define prescale value
+	UCSR1B |= (1 << RXEN) | (1 << TXEN) ;            // Enable USART transmitter and receiver
+	UCSR1C |= (1 << UCSZ0) | (1 << UCSZ1);            // Write USCRC for 8 bit data and 1 stop bit, 
+	UBRR1L = BAUD_PRESCALE;                            // Load UBRRL with lower 8 bit of prescale value
+	UBRR1H = (BAUD_PRESCALE >> 8);                    // Load UBRRH with upper 8 bit of prescale value
+}
+
+// Data transmitting function
+void USART_TxChar(char data)
+{
+	UDR1 = data;                                        /* Write data to be transmitting in UDR */
+	while (!(UCSR1A & (1<<UDRE)));                    /* Wait until data transmit and buffer get empty */
+}
+
+// used to send a string of characters to the USART (instead of one character at a time).
+void USART_SendString(char *str)
+{
+	int i=0;
+	while (str[i]!=0)
+	{
+		USART_TxChar(str[i]);                        /* Send each char of string till the NULL */
+		i++;
+	}
+	USART_TxChar(10); 
+	USART_TxChar(13); 
+}
