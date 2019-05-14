@@ -27,16 +27,20 @@ void USART_TxChar(char);
 void USART_SendString(char*);
 unsigned char value;
 void newArray();
-void delay(int time_ms);
+void delay(unsigned int time_ms);
+void makeNoise(unsigned int Hz, unsigned int delay_ms)
 void displayPattern();
 void incrementMode();
+void updateButtons();
+//void makeButtonPressedNoise(char)
 
-char b1, b2, b3, b4, b5, b6, b7, b8, modeButton, session = 0;
-char mode = 1, pos = 0;
+char b1 = 1, b2 = 1, b3 = 1, b4 = 1, modeButton, session = 0;
+char lastb1 = 1, lastb2 = 1, lastb3 = 1 , lastb4 = 1, lastm = 1;
+char mode = 1, pos = 0, checkTime = 0, validate = 0, currentButton = 0;
 char array1[10] = {0};
 int delayTime = 1000;
-int timeBuffer = 0;
-char patternSize = 4;
+unsigned int timeBuffer = 0, delayBuffer = 0;
+char patternSize = 4, toggleSoundPin = 0;
 
 int main(void)
 {
@@ -48,7 +52,7 @@ int main(void)
 	DDRE = 0xBF;
 
 	TCCR0A = (1 << WGM01); //Set CTC bit
-	OCR0A = 125;
+	OCR0A = 250;
 	TIMSK0 = (1 << OCIE0A); // Set Compare A interrupt
 	sei(); 
 
@@ -61,21 +65,15 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
-		USART_SendString("Beginning");
-		//updateButtons()
-		newArray();
-		USART_SendString("End");
-		displayPattern();
-		
-		delay(100);
-		/*
+		updateButtons();
+
 		if(session == 0) {
 			pos = 0;
 			newArray();
 			displayPattern();
-			displayingPattern = 0;
 			session = 1;
 		}
+		/*
 		if(validate == 1) {
 			if(currentButton == array1[pos]) {
 				validate = 0;			// if button pressed was correct, then pos increment and continue game
@@ -93,26 +91,103 @@ int main(void)
     }
 }
 
-/*
-void buttonPressed(char saidButton) {
-	currentButton = saidButton;
-	saidButtonLED = HIGH;
-	makeButtonPressedNoise(); // need to use timer2 for noise frequency
-	validate = 1;
+
+void buttonPressed(char button) {
+	
+	switch (button)
+	{
+	case 1:
+		PORTE &= ~(1 << pinID1);
+		delay(500);
+		PORTE |= 1 << pinID1;
+		validate = 1;
+		break;
+	case 2:
+		PORTD &= ~(1 << pinID2);
+		delay(500);
+		PORTD |= 1 << pinID2;
+		validate = 1;
+		break;
+	case 3:
+		PORTD &= ~(1 << pinID3);
+		delay(500);
+		PORTD |= 1 << pinID3;
+		validate = 1;
+		break;
+	case 4:
+		PORTD &= ~(1 << pinID4);
+		delay(500);
+		PORTD |= 1 << pinID4;
+		validate = 1;
+		break;
+	}
+	
+	currentButton = button;
+	
+	//makeButtonPressedNoise(); // need to use timer2 for noise frequency
 
 }
 
 void updateButtons() {
+	b1 = (PINE >> (pinID1+1)) & 1;
+	if(b1 == 0 && b1 != lastb1) {
+		delay(25);
+		b1 = (PINE >> (pinID1+1)) & 1;
+		if(b1 == 0) {
+			buttonPressed(1);
+			makeNoise(400, 1000);
+		}
+	}
+	lastb1 = b1;
 	
-	if (anyOtherButton == HIGH) {
-		buttonPressed(saidButton);  // Send button ID that was pressed to function to display button's LED and call noise function
+	b2 = (PINA >> pinID2) & 1;
+	if(b2 == 0 && b2 != lastb2) {
+		delay(25);
+		b2 = (PINA >> pinID2) & 1;
+		if(b2 == 0) {
+			buttonPressed(2);
+			makeNoise(500, 1000);
+		}
 	}
-
-	if(modeButton == 1) {
-		incrementMode()
+	lastb2 = b2;
+	
+	b3 = (PINA >> pinID3) & 1;
+	if(b3 == 0 && b3 != lastb3) {
+		delay(25);
+		b3 = (PINA >> pinID3) & 1;
+		if(b3 == 0) {
+			buttonPressed(3);
+			makeNoise(600, 1000);
+		}
 	}
+	lastb3 = b3;
+	
+	b4 = (PINA >> pinID4) & 1;
+	if(b4 == 0 && b4 != lastb4) {
+		delay(25);
+		b4 = (PINA >> pinID4) & 1;
+		if(b4 == 0) {
+			buttonPressed(4);
+			makeNoise(600, 1000);
+		}
+	}
+	lastb4 = b4;
+	
+	modeButton = (PINA >> 1) & 1;
+	if(modeButton == 0 && modeButton != lastm) {
+		delay(25);
+		modeButton = (PINA >> 1) & 1;
+		if(modeButton == 0) {
+			incrementMode();
+		}
+	}
+	lastm = modeButton;
 }
-*/
+
+void makeNoise(int Hz, int delay_ms) {
+	
+}
+
 void incrementMode() {
 	mode++;
 	if(mode == 4) {
@@ -177,25 +252,34 @@ void newArray() {
 	USART_SendString("Made new Array");
 }
 
- void delay(int time_ms) {
-	char complete = 0;
+ void delay(unsigned int time_ms) {
+	checkTime = 1;
 	timeBuffer = 0;
-	while(complete == 0) {
-		char buf[10];
+	delayBuffer = time_ms;
+	while (checkTime == 1) {
+		PORTD = PORTD;  //busy wait
+	}
+	
+	/*
+
+		//char buf[10];
 		//itoa(timeBuffer, buf, 10);
 		//USART_SendString(buf);
 		//itoa(time_ms, buf, 10);
 		//USART_SendString(buf);
-		
-		if (timeBuffer > time_ms)
-		{
-			complete = 1;
-		}
-	}
+		//USART_SendString("Made new Array");
+
+	*/
  }
 
  ISR(TIMER0_COMPA_vect) {
-	timeBuffer += 1;
+	 
+	if(checkTime == 1) {
+		timeBuffer += 1;
+		if(timeBuffer >= delayBuffer) {
+			checkTime = 0;
+		}
+	}
 	TCNT0 = 0;
  }
  
